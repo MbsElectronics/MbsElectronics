@@ -1,10 +1,6 @@
 /*  Таймер / термометр
 
-21.01.2011:
 Добавлена отработка исполнительного устройства на порту A3
-08.02.2011:
-Собираюсь добавить звуковую сигнализацию превышения (и пренижения )
-температуры
 -------------------------------------------------------------
 
 
@@ -140,7 +136,7 @@ void delay15u(){
 }
 //-------------------------------------------------------------
 
-void timeout(){
+void timeout(){   //Вывод на дисплей времени
    //char ti;
    //char DC,DA,DB; //десятичные разряды
     //дополнительные символы
@@ -186,7 +182,7 @@ void timeout(){
 //Новая версия компилятора вообще никак не позволяет Reentrancy
 //для pic16. Чтобы код работал тупо копирую функцию с другим именем
 //для вызова из прерываний. Делать флаги в  цикле лень. место в памяти есть:
-void timeout_int(){
+void timeout_int(){    //Вывод на дисплей времени из прерывания
    //char ti;
    //char DC,DA,DB; //десятичные разряды
     //дополнительные символы
@@ -337,7 +333,8 @@ void interrupt(){
       //обратный отсчет каждое второе прерывание (каждую секунду)
       intcount++;
       if (intcount.B0 & (~pausepressed)) {
-          if (time_s == 0) {//это означает что отсчет закончен
+          if (time_s <= 1) {//это означает что отсчет закончен
+            time_s = 0;
             T1CON = 0b00110000;  //Остановили таймер
             PIE1.TMR1IE = 0; //запретить прерывания от timer1
             pausepressed = 0;
@@ -372,7 +369,8 @@ void interrupt(){
             stoppressed = 1;
             pausepressed = 0;
           }  else  {
-              time_s--;
+              if   (time_s > 0 ) time_s--;
+
              } //отсчет НЕ закончен
 
         timeout_int();
@@ -514,15 +512,19 @@ while (1) { //основной бесконечный цикл
      do{} while (Button(&PORTB, 4, 50, 0)); //Дожидаемся отпускания
      //внутренний цикл измерения температуры
      do {
+          GIE_BIT = 0;
       Ow_Reset(&PORTA, 4);                 // Onewire reset signal
       Ow_Write(&PORTA, 4, 0xCC);           // Issue command SKIP_ROM
       Ow_Write(&PORTA, 4, 0x44);           // Issue command CONVERT_T
-      Delay_us(120);
+          GIE_BIT = 1;
+      Delay_ms(752);
+          GIE_BIT = 0;
       Ow_Reset(&PORTA, 4);
       Ow_Write(&PORTA, 4, 0xCC);           // Issue command SKIP_ROM
       Ow_Write(&PORTA, 4, 0xBE);           // Issue command READ_SCRATCHPAD
       temp =  Ow_Read(&PORTA, 4);
       temp = (Ow_Read(&PORTA, 4) << 8) + temp;
+         GIE_BIT = 1;
       //Вывод результатов на ЖКИ
       tempout(temp);
       Delay500();
